@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "version": "1.0.0",
+  "name": "AstrBot DB Demo（示例调用插件）",
+  "description": "演示如何通过 API 调用 astrbot-db-port 插件，读写数据库、KV、对话等。",
+  "author": { "name": "MaiBot Community", "url": "https://github.com/MaiM-with-u" },
+  "license": "GPL-v3.0-or-later",
+  "urls": {
+    "repository": "https://github.com/MaiM-with-u/maibot"
+  },
+  "host_application": { "min_version": "1.0.0", "max_version": "1.0.0" },
+  "sdk": { "min_version": "2.0.0", "max_version": "2.99.99" },
+  "dependencies": [
+    { "type": "plugin", "id": "maibot-team.astrbot-db-port", "version_spec": ">=1.0.0" }
+  ],
+  "capabilities": [
+    "send.text",
+    "api.call"
+  ],
+  "i18n": {
+    "default_locale": "zh-CN",
+    "locales_path": "_locales",
+    "supported_locales": ["zh-CN"]
+  },
+  "id": "maibot-team.astrbot-db-demo"
+}
