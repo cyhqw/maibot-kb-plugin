@@ -2,7 +2,7 @@
 
 import pytest
 
-from astrdb.models import (
+from maikb.models import (
     ConversationV2,
     Persona,
     build_umo,

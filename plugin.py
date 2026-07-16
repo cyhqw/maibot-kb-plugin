@@ -1,14 +1,15 @@
-"""AstrBot 数据库移植插件入口
+"""MaiBot 知识库插件入口
 
 通过 MaiBot 插件 SDK 注册：
-- on_load: 初始化数据库（建表 + PRAGMA + 迁移）
-- on_unload: 关闭引擎
-- @API astrdb.kv: 暴露 KV 三件套给其他插件
-- @API astrdb.conversation: 暴露对话 CRUD
-- @API astrdb.persona: 暴露人格 CRUD
-- @API astrdb.message_history: 暴露消息历史
-- @API astrdb.stats: 暴露统计 API
-- @Command /adb: 管理命令（统计/备份/导出）
+- on_load: 初始化数据库（建表 + PRAGMA + 迁移）+ 知识库 + Web UI
+- on_unload: 关闭引擎与 Web 服务
+- @API maikb.kv: 暴露 KV 三件套给其他插件
+- @API maikb.conv: 暴露对话 CRUD
+- @API maikb.persona: 暴露人格 CRUD
+- @API maikb.msg: 暴露消息历史
+- @API maikb.stats: 暴露统计 API
+- @API maikb.kb: 知识库检索/导入/管理
+- @Tool knowledge_search: LLM 主动检索知识库
 """
 
 from __future__ import annotations
@@ -17,21 +18,21 @@ import logging
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List
 
-from maibot_sdk import API, Command, Field, MaiBotPlugin, PluginConfigBase
+from maibot_sdk import API, Field, MaiBotPlugin, PluginConfigBase
 
-import astrdb
-from astrdb import (
-    AstrBotDatabase,
+import maikb
+from maikb import (
+    MaiKBDatabase,
     build_umo,
     close_db,
     get_db,
     get_sp,
     init_db,
 )
-from astrdb.interceptor import InterceptorMixin
-from astrdb.injector import InjectorMixin
-from astrdb.kb.api import KbApiMixin, close_kb, init_kb, load_kb_index
-from astrdb.webui import WebServer
+from maikb.interceptor import InterceptorMixin
+from maikb.injector import InjectorMixin
+from maikb.kb.api import KbApiMixin, close_kb, init_kb, load_kb_index
+from maikb.webui import WebServer
 
 
 # ----------------------------------------------------------------------
@@ -48,25 +49,12 @@ class DatabaseSectionConfig(PluginConfigBase):
     config_version: str = Field(default="1.0.0", description="配置版本号")
     enabled: bool = Field(default=True, description="是否启用数据库插件")
     db_filename: str = Field(
-        default="astrbot.db",
+        default="maikb.db",
         description="数据库文件名（保存在插件 data_dir 下）",
     )
     auto_backup_on_start: bool = Field(
         default=False,
         description="启动时是否自动备份一次数据库（保留最近 7 份）",
-    )
-
-
-class AdminSectionConfig(PluginConfigBase):
-    """管理命令配置。"""
-
-    __ui_label__: ClassVar[str] = "管理命令"
-    __ui_icon__: ClassVar[str] = "settings"
-    __ui_order__: ClassVar[int] = 1
-
-    admin_users: List[str] = Field(
-        default_factory=list,
-        description="允许使用 /adb 命令的用户 ID 列表（platform:user_id 格式）",
     )
 
 
@@ -195,11 +183,10 @@ class WebUISectionConfig(PluginConfigBase):
     )
 
 
-class AstrBotDbConfig(PluginConfigBase):
-    """AstrBot 数据库移植插件配置。"""
+class MaiKBConfig(PluginConfigBase):
+    """MaiBot 知识库插件配置。"""
 
     database: DatabaseSectionConfig = Field(default_factory=DatabaseSectionConfig)
-    admin: AdminSectionConfig = Field(default_factory=AdminSectionConfig)
     knowledge_base: KnowledgeBaseSectionConfig = Field(default_factory=KnowledgeBaseSectionConfig)
     interceptor: InterceptorSectionConfig = Field(default_factory=InterceptorSectionConfig)
     injector: InjectorSectionConfig = Field(default_factory=InjectorSectionConfig)
@@ -210,10 +197,10 @@ class AstrBotDbConfig(PluginConfigBase):
 # 插件主类
 # ----------------------------------------------------------------------
 
-class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin):
-    """AstrBot 数据库移植插件。"""
+class MaiKBPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin):
+    """MaiBot 知识库插件。"""
 
-    config_model = AstrBotDbConfig
+    config_model = MaiKBConfig
 
     # 保存最近一次初始化的 db 路径，用于诊断
     _db_path: Path | None = None
@@ -225,14 +212,14 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
 
         cfg = self.config.database
         if not cfg.enabled:
-            self.ctx.logger.warning("AstrBot DB 插件已被禁用（database.enabled=false）")
+            self.ctx.logger.warning("MaiBot 知识库已被禁用（database.enabled=false）")
             return
 
         # 数据库路径：使用 MaiBot 分配给插件的 data_dir
         db_path = self.ctx.paths.data_dir / cfg.db_filename
         self._db_path = db_path
 
-        self.ctx.logger.info(f"初始化 AstrBot 数据库: {db_path}")
+        self.ctx.logger.info(f"初始化 MaiBot 知识库: {db_path}")
         await init_db(str(db_path))
 
         # 可选：启动时自动备份
@@ -242,7 +229,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         # 测试连通性
         db = get_db()
         tables = await db.list_tables()
-        self.ctx.logger.info(f"AstrBot 数据库就绪，共 {len(tables)} 张表")
+        self.ctx.logger.info(f"MaiBot 知识库就绪，共 {len(tables)} 张表")
 
         # 知识库初始化
         kb_cfg = self.config.knowledge_base
@@ -332,7 +319,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         if kb_cfg.auto_ingest_on_start:
             self.ctx.logger.info(f"开始扫描知识库目录: {kb_dir}")
             # 复用 importer（已通过 init_kb 创建）
-            from astrdb.kb.api import _kb_importer
+            from maikb.kb.api import _kb_importer
             if _kb_importer is not None:
                 result = await _kb_importer.ingest_directory()
                 self.ctx.logger.info(
@@ -352,7 +339,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
             self._web_server = None
         close_kb()
         await close_db()
-        self.ctx.logger.info("AstrBot 数据库、KB 与 Web UI 已关闭")
+        self.ctx.logger.info("MaiBot 知识库、KB 与 Web UI 已关闭")
 
     async def on_config_update(
         self, scope: str, config_data: dict[str, Any], version: str
@@ -363,7 +350,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         # 数据库文件路径变更需要手动重启插件
         if scope == "self":
             new_filename = (
-                config_data.get("database", {}).get("db_filename", "astrbot.db")
+                config_data.get("database", {}).get("db_filename", "maikb.db")
             )
             if self._db_path and self._db_path.name != new_filename:
                 self.ctx.logger.warning(
@@ -387,30 +374,23 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         backup_dir.mkdir(parents=True, exist_ok=True)
 
         ts = time.strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"astrbot_{ts}.db"
+        backup_path = backup_dir / f"maikb_{ts}.db"
         shutil.copy2(self._db_path, backup_path)
         self.ctx.logger.info(f"已备份数据库到 {backup_path}")
 
         # 保留最近 7 份
-        backups = sorted(backup_dir.glob("astrbot_*.db"))
+        backups = sorted(backup_dir.glob("maikb_*.db"))
         for old in backups[:-7]:
             old.unlink()
             self.ctx.logger.info(f"清理旧备份: {old.name}")
 
-    def _is_admin(self, platform: str, user_id: str) -> bool:
-        """检查用户是否在 admin 白名单中。"""
-
-        admin_list = self.config.admin.admin_users or []
-        scoped = f"{platform}:{user_id}"
-        return scoped in admin_list
-
     # ==================================================================
-    # 对外 API（其他插件通过 self.ctx.api.call('astrdb.kv', ...) 调用）
+    # 对外 API（其他插件通过 self.ctx.api.call('maikb.kv', ...) 调用）
     # ==================================================================
 
     # ----- KV API -----
 
-    @API("astrdb.kv.get", description="读取 KV 值", version="1", public=True)
+    @API("maikb.kv.get", description="读取 KV 值", version="1", public=True)
     async def api_kv_get(
         self,
         scope: str,
@@ -434,7 +414,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         sp = get_sp()
         return await sp.get_async(scope, scope_id, key, default)
 
-    @API("astrdb.kv.put", description="写入 KV 值", version="1", public=True)
+    @API("maikb.kv.put", description="写入 KV 值", version="1", public=True)
     async def api_kv_put(
         self,
         scope: str,
@@ -449,7 +429,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         await sp.put_async(scope, scope_id, key, value)
         return {"success": True, "scope": scope, "scope_id": scope_id, "key": key}
 
-    @API("astrdb.kv.delete", description="删除 KV 值", version="1", public=True)
+    @API("maikb.kv.delete", description="删除 KV 值", version="1", public=True)
     async def api_kv_delete(
         self, scope: str, scope_id: str, key: str, **_: Any
     ) -> dict[str, Any]:
@@ -459,7 +439,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         deleted = await sp.remove_async(scope, scope_id, key)
         return {"success": deleted, "existed": deleted}
 
-    @API("astrdb.kv.list", description="列出某 scope 下所有 KV", version="1", public=True)
+    @API("maikb.kv.list", description="列出某 scope 下所有 KV", version="1", public=True)
     async def api_kv_list(
         self,
         scope: str,
@@ -475,7 +455,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
 
     # ----- Conversation API -----
 
-    @API("astrdb.conv.create", description="创建对话", version="1", public=True)
+    @API("maikb.conv.create", description="创建对话", version="1", public=True)
     async def api_conv_create(
         self,
         platform: str,
@@ -512,7 +492,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
         }
 
-    @API("astrdb.conv.get", description="按 ID 获取对话", version="1", public=True)
+    @API("maikb.conv.get", description="按 ID 获取对话", version="1", public=True)
     async def api_conv_get(self, conversation_id: str, **_: Any) -> dict[str, Any] | None:
         db = get_db()
         conv = await db.get_conversation_by_id(conversation_id)
@@ -520,7 +500,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
             return None
         return _conv_to_dict(conv)
 
-    @API("astrdb.conv.list", description="按 UMO 列出对话", version="1", public=True)
+    @API("maikb.conv.list", description="按 UMO 列出对话", version="1", public=True)
     async def api_conv_list(
         self,
         platform: str,
@@ -537,7 +517,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
             "count": len(convs),
         }
 
-    @API("astrdb.conv.update_content", description="更新对话内容", version="1", public=True)
+    @API("maikb.conv.update_content", description="更新对话内容", version="1", public=True)
     async def api_conv_update_content(
         self,
         conversation_id: str,
@@ -551,7 +531,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         )
         return {"success": ok}
 
-    @API("astrdb.conv.delete", description="删除对话", version="1", public=True)
+    @API("maikb.conv.delete", description="删除对话", version="1", public=True)
     async def api_conv_delete(self, conversation_id: str, **_: Any) -> dict[str, Any]:
         db = get_db()
         ok = await db.delete_conversation(conversation_id)
@@ -559,7 +539,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
 
     # ----- Persona API -----
 
-    @API("astrdb.persona.list", description="列出人格", version="1", public=True)
+    @API("maikb.persona.list", description="列出人格", version="1", public=True)
     async def api_persona_list(
         self, folder_id: str | None = None, **_: Any
     ) -> dict[str, Any]:
@@ -579,7 +559,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
             "count": len(personas),
         }
 
-    @API("astrdb.persona.get", description="获取人格详情", version="1", public=True)
+    @API("maikb.persona.get", description="获取人格详情", version="1", public=True)
     async def api_persona_get(self, persona_id: str, **_: Any) -> dict[str, Any] | None:
         db = get_db()
         p = await db.get_persona(persona_id)
@@ -598,7 +578,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
 
     # ----- Message History API -----
 
-    @API("astrdb.msg.add", description="追加消息历史", version="1", public=True)
+    @API("maikb.msg.add", description="追加消息历史", version="1", public=True)
     async def api_msg_add(
         self,
         platform: str,
@@ -623,7 +603,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         )
         return {"id": rec.id, "user_id": rec.user_id}
 
-    @API("astrdb.msg.list", description="列出消息历史", version="1", public=True)
+    @API("maikb.msg.list", description="列出消息历史", version="1", public=True)
     async def api_msg_list(
         self,
         platform: str,
@@ -653,7 +633,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
 
     # ----- Stats API -----
 
-    @API("astrdb.stats.count", description="统计表行数", version="1", public=True)
+    @API("maikb.stats.count", description="统计表行数", version="1", public=True)
     async def api_stats_count(self, table_name: str, **_: Any) -> dict[str, Any]:
         db = get_db()
         try:
@@ -662,7 +642,7 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         except Exception as exc:
             return {"table": table_name, "error": str(exc)}
 
-    @API("astrdb.stats.incr_platform", description="自增平台消息统计", version="1", public=True)
+    @API("maikb.stats.incr_platform", description="自增平台消息统计", version="1", public=True)
     async def api_stats_incr_platform(
         self,
         timestamp: int,
@@ -675,139 +655,10 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
         await db.incr_platform_stat(timestamp, platform_id, platform_type, count)
         return {"success": True}
 
-    # ==================================================================
-    # 管理命令 /adb
-    # ==================================================================
-
-    @Command(
-        "astrdb_admin",
-        description="AstrBot 数据库管理命令",
-        pattern=r"(?P<cmd>^/adb(?:\s+.+)?\s*$)",
-    )
-    async def handle_adb(
-        self,
-        stream_id: str = "",
-        platform: str = "",
-        user_id: str = "",
-        matched_groups: dict | None = None,
-        **kwargs: Any,
-    ) -> tuple[bool, str, bool]:
-        """处理 /adb 命令。
-
-        用法：
-            /adb                  显示帮助
-            /adb stats            显示各表行数
-            /adb tables           列出所有表
-            /adb backup           手动备份
-            /adb export <table>   导出表为 JSON
-        """
-
-        # 权限检查
-        if not self._is_admin(platform, user_id):
-            await self.ctx.send.text("你没有权限使用 /adb 命令", stream_id)
-            return False, "无权限", True
-
-        if not stream_id:
-            return False, "无法获取 stream_id", True
-
-        cmd = (matched_groups or {}).get("cmd", "").strip()
-        parts = cmd.split() if cmd else ["/adb"]
-        n = len(parts)
-
-        if n == 1:
-            await self.ctx.send.text(_ADB_HELP, stream_id)
-            return True, "已发送帮助", True
-
-        sub = parts[1]
-        if sub == "stats":
-            await self._cmd_stats(stream_id)
-        elif sub == "tables":
-            await self._cmd_tables(stream_id)
-        elif sub == "backup":
-            await self._cmd_backup(stream_id)
-        elif sub == "export" and n >= 3:
-            await self._cmd_export(parts[2], stream_id)
-        else:
-            await self.ctx.send.text(_ADB_HELP, stream_id)
-        return True, "命令完成", True
-
-    async def _cmd_stats(self, stream_id: str) -> None:
-        db = get_db()
-        tables = await db.list_tables()
-        lines = ["【AstrBot 数据库统计】", ""]
-        for t in tables:
-            try:
-                c = await db.count_rows(t)
-                lines.append(f"  {t}: {c}")
-            except Exception as exc:
-                lines.append(f"  {t}: <error: {exc}>")
-        await self.ctx.send.text("\n".join(lines), stream_id)
-
-    async def _cmd_tables(self, stream_id: str) -> None:
-        db = get_db()
-        tables = await db.list_tables()
-        await self.ctx.send.text(
-            f"共 {len(tables)} 张表:\n" + "\n".join(f"  - {t}" for t in tables),
-            stream_id,
-        )
-
-    async def _cmd_backup(self, stream_id: str) -> None:
-        if not self._db_path or not self._db_path.exists():
-            await self.ctx.send.text("数据库文件不存在", stream_id)
-            return
-        import shutil
-        import time
-        backup_dir = self.ctx.paths.data_dir / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"astrbot_manual_{ts}.db"
-        shutil.copy2(self._db_path, backup_path)
-        await self.ctx.send.text(f"已备份到 {backup_path.name}", stream_id)
-
-    async def _cmd_export(self, table_name: str, stream_id: str) -> None:
-        """简单导出某张表为 JSON（限 100 行）。"""
-
-        import json
-        from sqlalchemy import text
-        db = get_db()
-        async with db.get_db() as session:
-            result = await session.execute(
-                text(f"SELECT * FROM {table_name} LIMIT 100")
-            )
-            rows = result.fetchall()
-
-        if not rows:
-            await self.ctx.send.text(f"表 {table_name} 为空或不存在", stream_id)
-            return
-
-        cols = list(rows[0]._mapping.keys())
-        data = [dict(zip(cols, row)) for row in rows]
-        # 序列化 datetime
-        for row in data:
-            for k, v in row.items():
-                if hasattr(v, "isoformat"):
-                    row[k] = v.isoformat()
-
-        export_path = self.ctx.paths.data_dir / f"export_{table_name}.json"
-        export_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-        await self.ctx.send.text(
-            f"已导出 {len(data)} 行到 {export_path.name}", stream_id
-        )
-
 
 # ----------------------------------------------------------------------
 # 工具函数与常量
 # ----------------------------------------------------------------------
-
-_ADB_HELP = (
-    "AstrBot 数据库管理命令\n"
-    "/adb           显示此帮助\n"
-    "/adb stats     显示各表行数\n"
-    "/adb tables    列出所有表名\n"
-    "/adb backup    手动备份数据库\n"
-    "/adb export <table>  导出某张表前 100 行为 JSON"
-)
-
 
 def _conv_to_dict(conv) -> dict[str, Any]:
     return {
@@ -827,7 +678,7 @@ def _conv_to_dict(conv) -> dict[str, Any]:
 # 插件工厂函数（MaiBot SDK 入口）
 # ----------------------------------------------------------------------
 
-def create_plugin() -> AstrBotDbPlugin:
+def create_plugin() -> MaiKBPlugin:
     """MaiBot Runner 调用的工厂函数。"""
 
-    return AstrBotDbPlugin()
+    return MaiKBPlugin()

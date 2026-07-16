@@ -1,18 +1,18 @@
 {
   "manifest_version": 2,
-  "version": "2.0.0",
-  "name": "知识库 (Knowledge Base RAG)",
-  "description": "MaiBot 知识库插件：markdown 文档语义切分 + 向量/BM25 混合检索 + RRF 融合 + 自动注入，并附 AstrBot 数据库移植作为存储抽象与 Web 管理界面。",
+  "version": "1.0.0",
+  "name": "MaiBot 知识库",
+  "description": "MaiBot 知识库插件：markdown 文档语义切分 + 向量/BM25 混合检索 + RRF 融合 + 自动注入，附 SQLite 存储抽象与 Web 管理界面。",
   "author": {
     "name": "MaiBot Community",
     "url": "https://github.com/cyhqw"
   },
   "license": "GPL-v3.0-or-later",
   "urls": {
-    "repository": "https://github.com/cyhqw/maibot-astrbot-db",
-    "homepage": "https://github.com/cyhqw/maibot-astrbot-db",
-    "documentation": "https://github.com/cyhqw/maibot-astrbot-db",
-    "issues": "https://github.com/cyhqw/maibot-astrbot-db/issues"
+    "repository": "https://github.com/cyhqw/maikb",
+    "homepage": "https://github.com/cyhqw/maikb",
+    "documentation": "https://github.com/cyhqw/maikb",
+    "issues": "https://github.com/cyhqw/maikb/issues"
   },
   "changelog": "CHANGELOG.md",
   "host_application": {
@@ -33,14 +33,8 @@
     { "type": "python_package", "name": "tomlkit", "version_spec": ">=0.12.0" }
   ],
   "capabilities": [
-    "send.text",
     "config.get",
     "llm.embed"
   ],
-  "i18n": {
-    "default_locale": "zh-CN",
-    "locales_path": "_locales",
-    "supported_locales": ["zh-CN"]
-  },
-  "id": "maibot-team.astrbot-db-port"
+  "id": "maibot-team.maikb"
 }

@@ -1,7 +1,7 @@
-"""astrdb — AstrBot 数据库移植到 MaiBot 插件运行时
+"""maikb — MaiBot 知识库插件核心包
 
 提供：
-- AstrBotDatabase: 异步 DAO 类
+- MaiKBDatabase: 异步 DAO 类
 - SharedPreferences: 三层 KV API
 - 全部 SQLModel 表定义
 - 迁移框架
@@ -9,7 +9,7 @@
 
 用法（在 MaiBot 插件中）：
 
-    from astrdb import get_db, sp, build_umo
+    from maikb import get_db, sp, build_umo
 
     db = await get_db()
     conv = await db.create_conversation(
@@ -25,7 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from .database import AstrBotDatabase
+from .database import MaiKBDatabase
 from .models import (
     ApiKey,
     Attachment,
@@ -59,18 +59,18 @@ from .migrations import (
 )
 
 # KB 模块不在此处导入，避免循环依赖
-# 使用时通过 `from astrdb.kb import ...` 或 `import astrdb.kb as kb` 显式导入
+# 使用时通过 `from maikb.kb import ...` 或 `import maikb.kb as kb` 显式导入
 
 
 # ----------------------------------------------------------------------
 # 全局单例（plugin.py 在 on_load 中调用 init_db，在 on_unload 中调用 close_db）
 # ----------------------------------------------------------------------
 
-_db: Optional[AstrBotDatabase] = None
+_db: Optional[MaiKBDatabase] = None
 _sp: Optional[SharedPreferences] = None
 
 
-async def init_db(db_path: str | Path) -> AstrBotDatabase:
+async def init_db(db_path: str | Path) -> MaiKBDatabase:
     """初始化全局数据库单例。
 
     在插件 on_load 钩子中调用。会执行：
@@ -82,7 +82,7 @@ async def init_db(db_path: str | Path) -> AstrBotDatabase:
     """
 
     global _db, _sp
-    _db = AstrBotDatabase(db_path)
+    _db = MaiKBDatabase(db_path)
     await _db.initialize()
 
     # 跑迁移
@@ -91,7 +91,7 @@ async def init_db(db_path: str | Path) -> AstrBotDatabase:
         failed = [name for name, ok in results.items() if not ok]
         # 不抛异常，只记录日志；插件可以继续运行
         import logging
-        logging.getLogger("astrdb").error(
+        logging.getLogger("maikb").error(
             f"部分迁移失败: {failed}，请检查日志"
         )
 
@@ -109,11 +109,11 @@ async def close_db() -> None:
     _sp = None
 
 
-def get_db() -> AstrBotDatabase:
+def get_db() -> MaiKBDatabase:
     """获取全局数据库单例。
 
     Returns:
-        AstrBotDatabase: 已初始化的数据库实例。
+        MaiKBDatabase: 已初始化的数据库实例。
 
     Raises:
         RuntimeError: 数据库尚未初始化。
@@ -121,7 +121,7 @@ def get_db() -> AstrBotDatabase:
 
     if _db is None:
         raise RuntimeError(
-            "AstrBotDatabase 尚未初始化，请先调用 init_db() "
+            "MaiKBDatabase 尚未初始化，请先调用 init_db() "
             "（通常在插件 on_load 中由 plugin.py 完成）"
         )
     return _db
@@ -137,7 +137,7 @@ def get_sp() -> SharedPreferences:
 
 # 暴露 sp 作为模块级别名（与 AstrBot 原版用法一致）
 class _SPProxy:
-    """SharedPreferences 延迟代理，允许 `from astrdb import sp` 在 init 前导入。"""
+    """SharedPreferences 延迟代理，允许 `from maikb import sp` 在 init 前导入。"""
 
     def __getattr__(self, name: str):
         return getattr(get_sp(), name)
@@ -148,7 +148,7 @@ sp = _SPProxy()
 
 __all__ = [
     # 数据库
-    "AstrBotDatabase",
+    "MaiKBDatabase",
     "init_db",
     "close_db",
     "get_db",

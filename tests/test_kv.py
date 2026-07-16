@@ -2,8 +2,8 @@
 
 import pytest
 
-from astrdb import SharedPreferences
-from astrdb.models import build_umo
+from maikb import SharedPreferences
+from maikb.models import build_umo
 
 
 @pytest.mark.asyncio

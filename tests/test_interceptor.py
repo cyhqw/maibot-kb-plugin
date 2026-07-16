@@ -2,7 +2,7 @@
 
 import pytest
 
-from astrdb.interceptor import (
+from maikb.interceptor import (
     DEFAULT_PREFIXES,
     extract_message_text,
     should_block,
@@ -64,7 +64,7 @@ def test_extract_message_text_none():
 def test_interceptor_mixin_class():
     """InterceptorMixin 类可以被继承。"""
 
-    from astrdb.interceptor import InterceptorMixin
+    from maikb.interceptor import InterceptorMixin
 
     class FakePlugin(InterceptorMixin):
         pass
@@ -75,7 +75,7 @@ def test_interceptor_mixin_class():
 def test_hook_handler_decorator_applied():
     """hook_prefix_guard 方法被 @HookHandler 装饰。"""
 
-    from astrdb.interceptor import InterceptorMixin
+    from maikb.interceptor import InterceptorMixin
     from maibot_sdk.components import _COMPONENT_INFO_ATTR, HookHandlerComponentInfo
 
     # 检查方法上有 HookHandler 装饰器元数据

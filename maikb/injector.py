@@ -1,4 +1,4 @@
-"""astrdb.injector
+"""maikb.injector
 
 自动召回 + 注入器 — 在 LLM 调用前自动检索知识库并注入到 prompt。
 
@@ -31,7 +31,7 @@ from maibot_sdk import HookHandler
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
 
 
-logger = logging.getLogger("astrdb.injector")
+logger = logging.getLogger("maikb.injector")
 
 
 # 注入文本模板
@@ -157,7 +157,7 @@ class InjectorMixin:
 
     @HookHandler(
         "maisaka.replyer.before_model_request",
-        name="astrdb_kb_auto_inject",
+        name="maikb_kb_auto_inject",
         description="在 replyer 构建最终消息后、请求模型前，自动检索知识库并注入相关内容",
         mode=HookMode.BLOCKING,
         order=HookOrder.NORMAL,

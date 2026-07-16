@@ -2,7 +2,7 @@
 
 import pytest
 
-from astrdb.injector import (
+from maikb.injector import (
     _extract_last_user_text,
     _format_chunks,
     _has_recent_tool_call,
@@ -158,7 +158,7 @@ def test_format_chunks_basic():
 def test_injector_mixin_class():
     """InjectorMixin 类可继承。"""
 
-    from astrdb.injector import InjectorMixin
+    from maikb.injector import InjectorMixin
 
     class FakePlugin(InjectorMixin):
         pass

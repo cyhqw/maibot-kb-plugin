@@ -17,11 +17,11 @@ from typing import Optional
 
 import numpy as np
 
-from ..database import AstrBotDatabase
+from ..database import MaiKBDatabase
 from .vector_store import VectorIndex
 
 
-logger = logging.getLogger("astrdb.kb.search")
+logger = logging.getLogger("maikb.kb.search")
 
 
 @dataclass
@@ -93,7 +93,7 @@ class HybridSearcher:
 
     def __init__(
         self,
-        db: AstrBotDatabase,
+        db: MaiKBDatabase,
         vector_index: VectorIndex,
         embedder,  # Embedder protocol
     ) -> None:

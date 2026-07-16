@@ -1,4 +1,4 @@
-"""astrdb.interceptor
+"""maikb.interceptor
 
 消息前缀拦截器 — 通过 MaiBot Hook 机制实现"不记录、不回复"。
 
@@ -29,7 +29,7 @@ from maibot_sdk import HookHandler
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
 
 
-logger = logging.getLogger("astrdb.interceptor")
+logger = logging.getLogger("maikb.interceptor")
 
 
 # 默认前缀字符
@@ -88,7 +88,7 @@ def should_block(text: str, prefixes: list[str]) -> tuple[bool, str]:
 
 
 class InterceptorMixin:
-    """前缀拦截器 Mixin，由 AstrBotDbPlugin 继承。
+    """前缀拦截器 Mixin，由 MaiKBPlugin 继承。
 
     配置项（在 [interceptor] section）：
     - enabled: bool = True
@@ -98,7 +98,7 @@ class InterceptorMixin:
 
     @HookHandler(
         "chat.receive.before_process",
-        name="astrdb_prefix_guard",
+        name="maikb_prefix_guard",
         description="拦截带特定前缀（/ [ # 等）的消息，不记录、不回复",
         mode=HookMode.BLOCKING,
         order=HookOrder.EARLY,
@@ -142,7 +142,7 @@ class InterceptorMixin:
         return {
             "action": "abort",
             "custom_result": {
-                "blocked_by": "astrdb.prefix_guard",
+                "blocked_by": "maikb.prefix_guard",
                 "matched_prefix": matched,
             },
         }

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from astrdb import close_db, get_db, init_db
-from astrdb.kb import (
+from maikb import close_db, get_db, init_db
+from maikb.kb import (
     DummyEmbedder,
     HybridSearcher,
     KnowledgeBaseImporter,

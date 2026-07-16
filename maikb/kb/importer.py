@@ -28,13 +28,13 @@ from typing import Optional
 
 import numpy as np
 
-from ..database import AstrBotDatabase
+from ..database import MaiKBDatabase
 from ..models import KnowledgeChunk, KnowledgeFile
 from .chunker import Chunk, chunk_file
 from .vector_store import VectorIndex
 
 
-logger = logging.getLogger("astrdb.kb.importer")
+logger = logging.getLogger("maikb.kb.importer")
 
 
 SUPPORTED_EXTENSIONS = {".md", ".markdown", ".txt"}
@@ -69,7 +69,7 @@ class KnowledgeBaseImporter:
 
     def __init__(
         self,
-        db: AstrBotDatabase,
+        db: MaiKBDatabase,
         vector_index: VectorIndex,
         embedder,
         knowledge_dir: Path | str,

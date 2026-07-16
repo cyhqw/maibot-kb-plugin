@@ -1,4 +1,4 @@
-"""astrdb.migrations
+"""maikb.migrations
 
 幂等迁移框架（移植自 AstrBot 自研迁移机制）。
 """

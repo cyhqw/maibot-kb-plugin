@@ -2,7 +2,7 @@
 
 import pytest
 
-from astrdb.kb import chunk_markdown, chunk_plain_text
+from maikb.kb import chunk_markdown, chunk_plain_text
 
 
 def test_basic_markdown_chunking():

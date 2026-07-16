@@ -1,4 +1,4 @@
-"""astrdb.database
+"""maikb.database
 
 异步 DAO 类 — 移植自 AstrBot `astrbot/core/db/sqlite.py` 的 SQLiteDatabase。
 
@@ -46,22 +46,22 @@ from .models import (
 )
 
 
-logger = logging.getLogger("astrdb.database")
+logger = logging.getLogger("maikb.database")
 
 
-class AstrBotDatabase:
+class MaiKBDatabase:
     """异步 SQLite DAO（移植自 AstrBot SQLiteDatabase）。
 
     用法：
 
-        db = AstrBotDatabase("/path/to/astrbot.db")
+        db = MaiKBDatabase("/path/to/maikb.db")
         await db.initialize()
         async with db.get_db() as session:
             ...
 
     也可以通过 plugin.py 中的全局单例访问：
 
-        from astrdb import get_db
+        from maikb import get_db
         db = await get_db()
     """
 
@@ -117,14 +117,14 @@ class AstrBotDatabase:
             await self._ensure_kb_fts_table(conn)
 
         self.inited = True
-        logger.info(f"AstrBotDatabase 初始化完成: {self.db_path}")
+        logger.info(f"MaiKBDatabase 初始化完成: {self.db_path}")
 
     async def close(self) -> None:
         """关闭引擎，释放连接池。"""
 
         await self.engine.dispose()
         self.inited = False
-        logger.info("AstrBotDatabase 已关闭")
+        logger.info("MaiKBDatabase 已关闭")
 
     # ------------------------------------------------------------------
     # 会话管理
@@ -837,4 +837,4 @@ class AstrBotDatabase:
                     return [(row[0], float(row[1])) for row in result.fetchall()]
 
 
-__all__ = ["AstrBotDatabase"]
+__all__ = ["MaiKBDatabase"]

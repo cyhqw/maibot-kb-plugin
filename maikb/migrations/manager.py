@@ -1,4 +1,4 @@
-"""astrdb.migrations.manager
+"""maikb.migrations.manager
 
 自研幂等迁移框架 — 移植自 AstrBot 的迁移机制。
 
@@ -6,7 +6,7 @@
 - 不使用 Alembic（太重）
 - 用 preferences 表自身记录"哪个迁移跑过了"
 - 每次启动都跑一遍所有迁移函数，已完成的自动跳过
-- 迁移函数签名：async def migrate_xxx(db: AstrBotDatabase) -> None
+- 迁移函数签名：async def migrate_xxx(db: MaiKBDatabase) -> None
 """
 
 from __future__ import annotations
@@ -14,13 +14,13 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable
 
-from ..database import AstrBotDatabase
+from ..database import MaiKBDatabase
 
 
-logger = logging.getLogger("astrdb.migrations")
+logger = logging.getLogger("maikb.migrations")
 
 
-MigrationFn = Callable[[AstrBotDatabase], Awaitable[None]]
+MigrationFn = Callable[[MaiKBDatabase], Awaitable[None]]
 
 
 # 全局迁移注册表
@@ -33,7 +33,7 @@ def register_migration(name: str):
     用法：
 
         @register_migration("add_xxx_column")
-        async def migrate_add_xxx_column(db: AstrBotDatabase) -> None:
+        async def migrate_add_xxx_column(db: MaiKBDatabase) -> None:
             ...
     """
 
@@ -44,7 +44,7 @@ def register_migration(name: str):
     return decorator
 
 
-async def run_migrations(db: AstrBotDatabase) -> dict[str, bool]:
+async def run_migrations(db: MaiKBDatabase) -> dict[str, bool]:
     """跑所有已注册的迁移（幂等，已完成的自动跳过）。
 
     返回 {migration_name: succeeded}。
@@ -87,7 +87,7 @@ def list_registered_migrations() -> list[str]:
 # 但我们仍然注册一个标记，确保未来 schema 变更时有清晰的版本路径。
 
 @register_migration("initial_schema_v1")
-async def _migrate_initial_schema_v1(db: AstrBotDatabase) -> None:
+async def _migrate_initial_schema_v1(db: MaiKBDatabase) -> None:
     """v1 初始 schema — 由 SQLModel.metadata.create_all 自动完成。"""
 
     # 实际上 create_all 在 initialize() 中已经跑过了，这里只是打个标记

@@ -1,4 +1,4 @@
-"""astrdb.models
+"""maikb.models
 
 移植自 AstrBot v4 的 SQLModel 表定义。
 
@@ -11,7 +11,7 @@
 - TimestampMixin 自动维护时间戳
 
 注意：本文件所有 SQLModel 类都注册在同一个 SQLModel.metadata 中，
-由 astrdb.database.AstrBotDatabase.initialize() 在启动时统一 create_all。
+由 maikb.database.MaiKBDatabase.initialize() 在启动时统一 create_all。
 """
 
 from __future__ import annotations

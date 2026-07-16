@@ -2,8 +2,8 @@
 
 import pytest
 
-from astrdb import (
-    AstrBotDatabase,
+from maikb import (
+    MaiKBDatabase,
     register_migration,
     run_migrations,
     list_registered_migrations,
@@ -39,13 +39,13 @@ async def test_custom_migration(tmp_path):
     state = {"executed": 0}
 
     @register_migration("test_custom_migration_xyz")
-    async def _migrate(db: AstrBotDatabase) -> None:
+    async def _migrate(db: MaiKBDatabase) -> None:
         state["executed"] += 1
 
     assert "test_custom_migration_xyz" in list_registered_migrations()
 
     db_path = tmp_path / "test_migrations.db"
-    db = AstrBotDatabase(db_path)
+    db = MaiKBDatabase(db_path)
     await db.initialize()
 
     # 第一次跑：应该执行
@@ -66,7 +66,7 @@ async def test_ensure_columns_idempotent(tmp_path):
     """_ensure_xxx_column 应该可重复执行。"""
 
     db_path = tmp_path / "test_ensure.db"
-    db = AstrBotDatabase(db_path)
+    db = MaiKBDatabase(db_path)
     await db.initialize()
 
     # 再次初始化不应抛错

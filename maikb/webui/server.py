@@ -1,4 +1,4 @@
-"""astrdb.webui.server
+"""maikb.webui.server
 
 独立的 FastAPI Web 管理界面。
 
@@ -34,7 +34,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 
-logger = logging.getLogger("astrdb.webui")
+logger = logging.getLogger("maikb.webui")
 
 
 # ----------------------------------------------------------------------
@@ -128,7 +128,7 @@ class WebServer:
         from fastapi.middleware.cors import CORSMiddleware
 
         app = FastAPI(
-            title="AstrBot DB Plugin - Knowledge Base Admin",
+            title="MaiBot Knowledge Base - Admin",
             docs_url="/api/docs",
             openapi_url="/api/openapi.json",
         )
@@ -163,7 +163,7 @@ class WebServer:
 
         @app.get("/health")
         async def health() -> dict:
-            return {"ok": True, "service": "astrdb-webui"}
+            return {"ok": True, "service": "maikb-webui"}
 
         # ------------------------------------------------------------------
         # 知识库 API
@@ -634,7 +634,7 @@ input[type=file] { display: none; }
 <body>
 <header>
   <div>
-    <h1>📚 AstrBot DB · 知识库管理</h1>
+    <h1>📚 MaiBot · 知识库管理</h1>
     <div class="subtitle">MaiBot 插件 · 向量/BM25 混合检索 RAG</div>
   </div>
   <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
@@ -737,8 +737,8 @@ input[type=file] { display: none; }
 <div id="toast" class="toast"></div>
 
 <script>
-let savedToken = localStorage.getItem('astrdb_token') || '';
-let savedTheme = localStorage.getItem('astrdb_theme') || '';
+let savedToken = localStorage.getItem('maikb_token') || '';
+let savedTheme = localStorage.getItem('maikb_theme') || '';
 if (savedTheme === 'dark') { document.documentElement.setAttribute('data-theme','dark'); document.getElementById('themeBtn').textContent = '☀️'; }
 document.getElementById('tokenInput').value = savedToken;
 refreshAll();
@@ -746,17 +746,17 @@ refreshAll();
 function toggleTheme() {
   const root = document.documentElement;
   if (root.getAttribute('data-theme') === 'dark') {
-    root.removeAttribute('data-theme'); localStorage.setItem('astrdb_theme','light');
+    root.removeAttribute('data-theme'); localStorage.setItem('maikb_theme','light');
     document.getElementById('themeBtn').textContent = '🌙';
   } else {
-    root.setAttribute('data-theme','dark'); localStorage.setItem('astrdb_theme','dark');
+    root.setAttribute('data-theme','dark'); localStorage.setItem('maikb_theme','dark');
     document.getElementById('themeBtn').textContent = '☀️';
   }
 }
 
 function saveToken() {
   savedToken = document.getElementById('tokenInput').value.trim();
-  localStorage.setItem('astrdb_token', savedToken);
+  localStorage.setItem('maikb_token', savedToken);
   toast('Token 已保存', 'success');
   refreshAll();
 }

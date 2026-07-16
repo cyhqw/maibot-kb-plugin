@@ -2,7 +2,7 @@
 
 import pytest
 
-from astrdb.models import build_umo
+from maikb.models import build_umo
 
 
 @pytest.mark.asyncio

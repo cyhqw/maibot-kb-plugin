@@ -1,12 +1,12 @@
 """importers.astrbot_importer
 
-从 AstrBot 的 data_v4.db 导入数据到本插件的 astrbot.db。
+从 AstrBot 的 data_v4.db 导入数据到本插件的 maikb.db。
 
 用法：
 
     python -m importers.astrbot_importer \\
         --src /path/to/AstrBot/data/data_v4.db \\
-        --dst /path/to/maibot/data/plugins/maibot-team.astrbot-db-port/astrbot.db
+        --dst /path/to/maibot/data/plugins/maibot-team.astrbot-db-port/maikb.db
 
 也支持以模块方式被插件代码调用：
 
@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from astrdb import AstrBotDatabase, init_db, close_db, get_db
-from astrdb.models import (
+from maikb import MaiKBDatabase, init_db, close_db, get_db
+from maikb.models import (
     Attachment,
     CommandConfig,
     CommandConflict,
@@ -48,7 +48,7 @@ from astrdb.models import (
 )
 
 
-logger = logging.getLogger("astrdb.importer")
+logger = logging.getLogger("maikb.importer")
 
 
 # 表名 → SQLModel 类映射
@@ -81,7 +81,7 @@ async def import_from_astrbot(
 
     Args:
         src_path: AstrBot data_v4.db 路径
-        dst_path: 本插件 astrbot.db 路径
+        dst_path: 本插件 maikb.db 路径
         batch_size: 每批读取的行数
         skip_tables: 跳过的表名集合
 
@@ -170,13 +170,13 @@ def main() -> None:
     """CLI 入口。"""
 
     parser = argparse.ArgumentParser(
-        description="从 AstrBot data_v4.db 导入数据到 MaiBot 插件 astrbot.db"
+        description="从 AstrBot data_v4.db 导入数据到 MaiBot 插件 maikb.db"
     )
     parser.add_argument(
         "--src", required=True, help="AstrBot data_v4.db 路径"
     )
     parser.add_argument(
-        "--dst", required=True, help="目标 astrbot.db 路径"
+        "--dst", required=True, help="目标 maikb.db 路径"
     )
     parser.add_argument(
         "--skip",

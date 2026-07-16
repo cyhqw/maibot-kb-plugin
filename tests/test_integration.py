@@ -1,8 +1,8 @@
 """tests.test_integration — 端到端集成测试
 
 模拟两个插件通过 API 互调的场景：
-- Plugin A (astrbot-db-port) 提供 astrdb.kv.put / astrdb.kv.get 等 API
-- Plugin B (consumer) 通过 self.ctx.api.call('astrdb.kv.put', ...) 调用
+- Plugin A (maikb) 提供 maikb.kv.put / maikb.kv.get 等 API
+- Plugin B (consumer) 通过 self.ctx.api.call('maikb.kv.put', ...) 调用
 
 由于测试环境没有 MaiBot Runtime，这里直接构造一个 plugin 实例，
 绕过 RPC，把 API 调用直接路由到 plugin 实例的方法上。
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-# 让测试能找到 astrdb 和 plugin 模块
+# 让测试能找到 maikb 和 plugin 模块
 sys.path.insert(0, str(Path(__file__).parent.parent))
 # maibot_sdk 由 conftest 统一处理（真实 SDK 优先，否则回退到测试桩）
 
@@ -77,9 +77,9 @@ async def test_end_to_end_kv_via_api(tmp_path):
     """端到端：通过模拟 API 调用 KV put/get。"""
 
     import plugin as plugin_module
-    from astrdb import init_db, close_db
+    from maikb import init_db, close_db
 
-    p = plugin_module.AstrBotDbPlugin()
+    p = plugin_module.MaiKBPlugin()
 
     # 注入配置
     p._plugin_config_data = {
@@ -89,7 +89,7 @@ async def test_end_to_end_kv_via_api(tmp_path):
         "knowledge_base": {"enabled": False, "config_version": "1.0.0"},
         "webui": {"enabled": False, "config_version": "1.0.0"},
     }
-    p._plugin_config_instance = plugin_module.AstrBotDbConfig(**p._plugin_config_data)
+    p._plugin_config_instance = plugin_module.MaiKBConfig(**p._plugin_config_data)
 
     # 注入上下文
     data_dir = tmp_path / "data"
@@ -100,7 +100,7 @@ async def test_end_to_end_kv_via_api(tmp_path):
     # 用最小化的 PluginContext 子类
     from maibot_sdk.context import PluginContext, PluginPaths
     ctx = PluginContext(
-        plugin_id="maibot-team.astrbot-db-port",
+        plugin_id="maibot-team.maikb",
         rpc_call=None,
         paths=PluginPaths(data_dir=data_dir, runtime_dir=runtime_dir),
     )
@@ -161,22 +161,22 @@ async def test_end_to_end_conversation_via_api(tmp_path):
     """端到端：通过 API 创建对话、列出对话、删除对话。"""
 
     import plugin as plugin_module
-    from astrdb import init_db, close_db
+    from maikb import init_db, close_db
 
-    p = plugin_module.AstrBotDbPlugin()
+    p = plugin_module.MaiKBPlugin()
     p._plugin_config_data = {
         "database": {"enabled": True, "db_filename": "test_e2e_conv.db", "config_version": "1.0.0", "auto_backup_on_start": False},
         "admin": {"admin_users": [], "config_version": "1.0.0"},
         "knowledge_base": {"enabled": False, "config_version": "1.0.0"},
         "webui": {"enabled": False, "config_version": "1.0.0"},
     }
-    p._plugin_config_instance = plugin_module.AstrBotDbConfig(**p._plugin_config_data)
+    p._plugin_config_instance = plugin_module.MaiKBConfig(**p._plugin_config_data)
 
     from maibot_sdk.context import PluginContext, PluginPaths
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     ctx = PluginContext(
-        plugin_id="maibot-team.astrbot-db-port",
+        plugin_id="maibot-team.maikb",
         rpc_call=None,
         paths=PluginPaths(data_dir=data_dir, runtime_dir=tmp_path / "runtime"),
     )
@@ -238,20 +238,20 @@ async def test_end_to_end_message_history(tmp_path):
 
     import plugin as plugin_module
 
-    p = plugin_module.AstrBotDbPlugin()
+    p = plugin_module.MaiKBPlugin()
     p._plugin_config_data = {
         "database": {"enabled": True, "db_filename": "test_e2e_msg.db", "config_version": "1.0.0", "auto_backup_on_start": False},
         "admin": {"admin_users": [], "config_version": "1.0.0"},
         "knowledge_base": {"enabled": False, "config_version": "1.0.0"},
         "webui": {"enabled": False, "config_version": "1.0.0"},
     }
-    p._plugin_config_instance = plugin_module.AstrBotDbConfig(**p._plugin_config_data)
+    p._plugin_config_instance = plugin_module.MaiKBConfig(**p._plugin_config_data)
 
     from maibot_sdk.context import PluginContext, PluginPaths
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     ctx = PluginContext(
-        plugin_id="maibot-team.astrbot-db-port",
+        plugin_id="maibot-team.maikb",
         rpc_call=None,
         paths=PluginPaths(data_dir=data_dir, runtime_dir=tmp_path / "runtime"),
     )

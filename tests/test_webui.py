@@ -2,21 +2,21 @@
 
 import pytest
 
-from astrdb import close_db, get_db, init_db
-from astrdb.kb import (
+from maikb import close_db, get_db, init_db
+from maikb.kb import (
     DummyEmbedder,
     HybridSearcher,
     KnowledgeBaseImporter,
     SearchQuery,
     VectorIndex,
 )
-from astrdb.kb.api import (
+from maikb.kb.api import (
     _kb_embedder,
     _kb_importer,
     _kb_searcher,
     _kb_vector_index,
 )
-from astrdb.webui import WebServer
+from maikb.webui import WebServer
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ async def setup_kb(tmp_path):
     (kb_dir / "a.md").write_text("# 测试\n\n法涅斯是原初之人。")
 
     # 初始化 KB 模块（绕过 plugin.py，直接用 kb.api 的全局变量）
-    import astrdb.kb.api as kb_api
+    import maikb.kb.api as kb_api
 
     embedder = DummyEmbedder(dimension=64, model_name="dummy-test")
     index = VectorIndex()
@@ -96,7 +96,7 @@ async def test_health_endpoint(setup_kb):
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
-        assert data["service"] == "astrdb-webui"
+        assert data["service"] == "maikb-webui"
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ async def test_index_page(setup_kb):
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"http://127.0.0.1:{port}/")
         assert resp.status_code == 200
-        assert "AstrBot DB" in resp.text
+        assert "MaiBot" in resp.text
         assert "知识库管理" in resp.text
 
 

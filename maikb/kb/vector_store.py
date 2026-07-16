@@ -23,7 +23,7 @@ from typing import Optional
 import numpy as np
 
 
-logger = logging.getLogger("astrdb.kb.vector_store")
+logger = logging.getLogger("maikb.kb.vector_store")
 
 
 class VectorIndex:

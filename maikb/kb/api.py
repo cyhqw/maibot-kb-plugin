@@ -3,18 +3,18 @@
 KB 模块对外 API 的实现（Mixin）。
 
 设计：把 KB 相关的 @API 方法抽到独立 Mixin，避免 plugin.py 过长。
-plugin.py 中的 AstrBotDbPlugin 通过多重继承把这个 Mixin 拉进来。
+plugin.py 中的 MaiKBPlugin 通过多重继承把这个 Mixin 拉进来。
 
 API 列表：
-- astrdb.kb.ingest_directory  批量扫描目录导入
-- astrdb.kb.ingest_file       单文件导入
-- astrdb.kb.list_files        列出已入库文件
-- astrdb.kb.search            混合检索
-- astrdb.kb.search_vector     仅向量检索
-- astrdb.kb.search_bm25       仅 BM25 检索
-- astrdb.kb.delete_file       删除某文件及其 chunks
-- astrdb.kb.stats             知识库统计
-- astrdb.kb.reload_index      重载内存索引
+- maikb.kb.ingest_directory  批量扫描目录导入
+- maikb.kb.ingest_file       单文件导入
+- maikb.kb.list_files        列出已入库文件
+- maikb.kb.search            混合检索
+- maikb.kb.search_vector     仅向量检索
+- maikb.kb.search_bm25       仅 BM25 检索
+- maikb.kb.delete_file       删除某文件及其 chunks
+- maikb.kb.stats             知识库统计
+- maikb.kb.reload_index      重载内存索引
 """
 
 from __future__ import annotations
@@ -26,9 +26,9 @@ from typing import Any, Optional
 from maibot_sdk import API, Tool
 from maibot_sdk.types import ToolParameterInfo, ToolParamType
 
-import astrdb
-from astrdb import get_db
-from astrdb.kb import (
+import maikb
+from maikb import get_db
+from maikb.kb import (
     DummyEmbedder,
     HybridSearcher,
     KnowledgeBaseImporter,
@@ -39,7 +39,7 @@ from astrdb.kb import (
 )
 
 
-logger = logging.getLogger("astrdb.kb.api")
+logger = logging.getLogger("maikb.kb.api")
 
 
 # 全局单例（plugin 在 on_load 中初始化）
@@ -146,14 +146,14 @@ def close_kb() -> None:
 
 
 class KbApiMixin:
-    """KB API 方法集合，由 AstrBotDbPlugin 多重继承。"""
+    """KB API 方法集合，由 MaiKBPlugin 多重继承。"""
 
     # ==================================================================
     # 导入 API
     # ==================================================================
 
     @API(
-        "astrdb.kb.ingest_directory",
+        "maikb.kb.ingest_directory",
         description="扫描知识库目录并增量导入所有 markdown/txt 文件",
         version="1",
         public=True,
@@ -176,7 +176,7 @@ class KbApiMixin:
         return {"success": True, **result.to_dict()}
 
     @API(
-        "astrdb.kb.ingest_file",
+        "maikb.kb.ingest_file",
         description="导入单个知识库文件",
         version="1",
         public=True,
@@ -203,7 +203,7 @@ class KbApiMixin:
     # ==================================================================
 
     @API(
-        "astrdb.kb.search",
+        "maikb.kb.search",
         description="混合检索知识库（向量 + BM25 + RRF 融合）",
         version="1",
         public=True,
@@ -249,7 +249,7 @@ class KbApiMixin:
         }
 
     @API(
-        "astrdb.kb.search_vector",
+        "maikb.kb.search_vector",
         description="仅向量检索",
         version="1",
         public=True,
@@ -275,7 +275,7 @@ class KbApiMixin:
         }
 
     @API(
-        "astrdb.kb.search_bm25",
+        "maikb.kb.search_bm25",
         description="仅 BM25 全文检索",
         version="1",
         public=True,
@@ -305,7 +305,7 @@ class KbApiMixin:
     # ==================================================================
 
     @API(
-        "astrdb.kb.list_files",
+        "maikb.kb.list_files",
         description="列出知识库中所有文件",
         version="1",
         public=True,
@@ -340,7 +340,7 @@ class KbApiMixin:
         }
 
     @API(
-        "astrdb.kb.delete_file",
+        "maikb.kb.delete_file",
         description="删除某个知识库文件及其所有 chunks",
         version="1",
         public=True,
@@ -352,7 +352,7 @@ class KbApiMixin:
         db = get_db()
         # 先查 chunk_ids 用于从内存索引删除
         from sqlmodel import select
-        from astrdb.models import KnowledgeChunk
+        from maikb.models import KnowledgeChunk
         async with db.get_db() as session:
             stmt = select(KnowledgeChunk.chunk_id).where(KnowledgeChunk.file_id == file_id)
             rows = (await session.execute(stmt)).fetchall()
@@ -365,7 +365,7 @@ class KbApiMixin:
         return {"success": True, "deleted_chunks": deleted}
 
     @API(
-        "astrdb.kb.stats",
+        "maikb.kb.stats",
         description="知识库统计信息",
         version="1",
         public=True,
@@ -391,7 +391,7 @@ class KbApiMixin:
         }
 
     @API(
-        "astrdb.kb.reload_index",
+        "maikb.kb.reload_index",
         description="从数据库重新加载向量索引到内存",
         version="1",
         public=True,

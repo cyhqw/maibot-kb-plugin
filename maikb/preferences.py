@@ -1,4 +1,4 @@
-"""astrdb.preferences
+"""maikb.preferences
 
 SharedPreferences 三层 KV API — 移植自 AstrBot `astrbot/core/utils/shared_preferences.py`。
 
@@ -16,10 +16,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from .database import AstrBotDatabase
+from .database import MaiKBDatabase
 
 
-logger = logging.getLogger("astrdb.preferences")
+logger = logging.getLogger("maikb.preferences")
 
 
 _SCOPE_GLOBAL = "global"
@@ -33,12 +33,12 @@ class SharedPreferences:
 
     用法（在 plugin.py 中通过全局单例访问）：
 
-        from astrdb import sp
+        from maikb import sp
         await sp.put_async("plugin", "my-plugin", "counter", 42)
         value = await sp.get_async("plugin", "my-plugin", "counter", default=0)
     """
 
-    def __init__(self, db: AstrBotDatabase) -> None:
+    def __init__(self, db: MaiKBDatabase) -> None:
         self._db = db
 
     # ------------------------------------------------------------------

@@ -21,7 +21,7 @@ from typing import Any, Awaitable, Callable, Optional, Protocol
 import numpy as np
 
 
-logger = logging.getLogger("astrdb.kb.embedder")
+logger = logging.getLogger("maikb.kb.embedder")
 
 
 class EmbeddingError(Exception):
