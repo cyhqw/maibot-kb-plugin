@@ -1,5 +1,137 @@
 # Changelog
 
+## 4.0.0 (2026-07-16)
+
+**重大升级**：移植 LivingMemory 核心创新 — MemoryAtom 记忆系统，让 Bot 拥有"活"的长期记忆。
+
+从 [astrbot_plugin_livingmemory](https://github.com/lxfight-s-Astrbot-Plugins/astrbot_plugin_livingmemory) 学习并移植了以下优秀设计（不包含图谱模块，因工作量过大且当前 KB RAG 已覆盖文档检索场景）：
+
+### 新增功能
+
+#### 1. MemoryAtom 数据模型 `astrdb/memory/models.py`
+
+把记忆从"整段总结"升级为"细粒度原子"。每个 atom 是独立的事实单元，拥有：
+- **5 种类型**：EPISODIC(事件) / FACTUAL(事实) / RELATIONAL(关系) / PREFERENCE(偏好) / PLANNED(计划)
+- **独立 TTL**：按类型+重要性+强化次数动态计算（公式：`base_ttl × (0.5 + importance) × (1 + min(0.5, reinforcement × 0.1))`）
+- **3 种衰减曲线**：LINEAR / EXPONENTIAL / STEP（PLANNED 类型到期骤降至 0.05）
+- **四级生命周期**：ACTIVE → EXPIRED → FORGOTTEN → 物理删除
+- **强化机制**：被相似内容命中时 confidence EMA 更新 + TTL 续期
+
+#### 2. AtomClassifier 纯规则分类 `astrdb/memory/atom_classifier.py`
+
+**零 LLM 调用**，基于正则模式匹配：
+- PLANNED：时间指示词 + 动作动词（"明天开会"）
+- PREFERENCE：偏好词（"喜欢"、"讨厌"）
+- RELATIONAL：关系词（"同事"、"朋友"）
+- FACTUAL：状态词（"是"、"有"、"属于"）
+- EPISODIC：动作但无时间
+
+支持中文相对时间解析（"明天"/"下周三"/"5月30日" → unix timestamp）。
+
+#### 3. AtomLifecycleManager `astrdb/memory/lifecycle.py`
+
+四级状态机 + 强化机制：
+- `expire_stale_atoms()`：ACTIVE → EXPIRED（TTL 到期）
+- `forget_expired_atoms()`：EXPIRED + 7天 → FORGOTTEN（从 FTS 移除）
+- `cleanup_forgotten()`：FORGOTTEN + 30天 → 物理删除
+- `reinforce_similar()`：Jaccard 相似度 ≥ 0.6 时强化（confidence EMA + TTL 续期）
+
+#### 4. DecayScheduler `astrdb/memory/decay_scheduler.py`
+
+每日定时衰减 + 自动清理：
+- 每日 00:05 执行（可配置）
+- 重要性衰减：`importance × (1-decay_rate)^days`
+- 访问强化降权：最近 30 天访问过的 atom 衰减率减半
+- 自动清理：删除 >30天 且 importance<0.3 的 atoms
+- 生命周期维护：状态机推进
+
+#### 5. MemoryProcessor 双通道摘要 `astrdb/memory/processor.py`
+
+对话总结 + atom 抽取：
+- 把对话消息格式化为 LLM 可读文本（群聊带昵称+时间前缀）
+- 调 MaiBot LLM 生成 JSON（summary / key_facts / topics / importance）
+- JSON 解析容错（直接解析 / markdown 代码块 / 正则提取 / 尾逗号修复）
+- 质量校验（summary 长度 / key_facts 非空 / importance 范围）
+- **双通道摘要**：canonical_summary（检索用，summary + key_facts 拼接）+ persona_summary（注入用，纯 summary）
+
+#### 6. AtomRetriever 多维加权检索 `astrdb/memory/retriever.py`
+
+移植 LivingMemory HybridRetriever 核心思想：
+- **多维加权**：`score = bm25×0.5 + importance×0.25 + recency×0.25`（再乘 decay_factor）
+- **MMR 去重**：Jaccard 词袋相似度，避免返回重复内容
+- **LRU 缓存**：相同查询 45s 内复用结果（写入/删除/衰减时自动失效）
+- **score_breakdown**：返回各维度分数明细，便于调试
+
+#### 7. 多模式注入适配器 `astrdb/memory/injection.py`
+
+3 种注入方式（LivingMemory 有 6 种，简化为最常用的）：
+- `extra_user_content`：追加新 user message（推荐，不污染历史）
+- `user_message_before`：拼到当前 user message 前面
+- `user_message_after`：拼到当前 user message 后面
+
+注入文本带明确 BEGIN/END 标记 + 类型/重要性/时间信息 + "PAST records, trust current conversation" 提示。
+
+#### 8. 8 个 Memory API + 2 个 LLM Tool
+
+**API**：
+- `astrdb.memorize` — 主动记忆
+- `astrdb.mem.search` — 检索记忆
+- `astrdb.mem.list` — 列出 atoms
+- `astrdb.mem.stats` — 记忆统计
+- `astrdb.mem.reinforce` — 强化 atom
+- `astrdb.mem.forget` — 删除 atom
+- `astrdb.mem.decay_now` — 手动触发衰减
+- `astrdb.mem.process` — 处理对话生成 atoms
+
+**LLM Tool**：
+- `memory_search` — 让 LLM 主动检索记忆
+- `memory_memorize` — 让 LLM 主动记忆
+
+#### 9. 自动注入 Hook
+
+注册 `@HookHandler("maisaka.planner.before_request", order=LATE)`，在 LLM 调用前自动检索记忆并注入。与 KB 注入器（order=NORMAL）并存，各自注入不同内容。
+
+### 与 A_memorix 的关系
+
+本插件的 Memory 模块**不直接取代** MaiBot 自带的 A_memorix，而是作为**补充**：
+- A_memorix：聊天摘要 + 人物画像（MaiBot 内置，深度集成）
+- 本插件 Memory：细粒度 MemoryAtom + 衰减调度 + 多维加权检索（插件层，可禁用）
+
+两者可以并存，各自注入 user message。如果用户想完全用本插件取代 A_memorix，可以在 MaiBot 配置中禁用 A_memorix。
+
+### 测试
+
+- **93 个 pytest 测试全部通过**（74 原有 + 19 Memory 新增）
+  - test_memory.py — Memory 模块完整测试（19 个）
+    - 模型测试（TTL/衰减/类型配置）
+    - 分类器测试（5 种类型识别）
+    - AtomStore CRUD + FTS + 强化
+    - 生命周期测试（过期→遗忘→清理）
+    - 衰减测试
+    - 检索器测试（多维加权 + MMR + 缓存）
+    - 注入测试
+
+### 设计来源
+
+| LivingMemory 模块 | 本插件对应 | 移植方式 |
+|---|---|---|
+| `core/models/memory_atom.py` | `astrdb/memory/models.py` | 完整移植，简化为 SQLModel |
+| `core/processors/atom_classifier.py` | `astrdb/memory/atom_classifier.py` | 完整移植，零改造 |
+| `storage/atom_store.py` | `astrdb/memory/atom_store.py` | 简化移植，去掉 AstrBot logger 依赖 |
+| `core/managers/atom_lifecycle_manager.py` | `astrdb/memory/lifecycle.py` | 简化移植 |
+| `core/schedulers/decay_scheduler.py` | `astrdb/memory/decay_scheduler.py` | 简化移植，去掉备份逻辑 |
+| `core/processors/memory_processor.py` | `astrdb/memory/processor.py` | 简化移植，LLM 调用改为延迟注入 |
+| `core/retrieval/hybrid_retriever.py` | `astrdb/memory/retriever.py` | 移植核心思想（多维加权+MMR+缓存） |
+| `core/utils/injection_adapter.py` | `astrdb/memory/injection.py` | 简化为 3 种注入方式 |
+
+**未移植**（取舍）：
+- ❌ GraphMemory（图谱）— 工作量大，当前 KB RAG 已覆盖文档检索
+- ❌ DualRouteRetriever — 依赖图谱
+- ❌ Web UI 图谱可视化 — 工作量大
+- ❌ FAISS — 当前 numpy 在 1 万 chunk 以下性能足够
+
+---
+
 ## 3.0.0 (2026-07-16)
 
 **重大升级**：补齐召回与注入机制、消息前缀拦截、Web 管理界面三大功能，全面完善插件可用性。

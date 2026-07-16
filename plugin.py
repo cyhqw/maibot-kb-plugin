@@ -31,6 +31,14 @@ from astrdb import (
 from astrdb.interceptor import InterceptorMixin
 from astrdb.injector import InjectorMixin
 from astrdb.kb.api import KbApiMixin, close_kb, init_kb, load_kb_index
+from astrdb.memory.api import (
+    MemoryApiMixin,
+    close_memory,
+    init_memory,
+    init_memory_async,
+    set_llm_fn as mem_set_llm_fn,
+)
+from astrdb.memory.decay_scheduler import DecayScheduler
 from astrdb.webui import WebServer
 
 
@@ -195,6 +203,56 @@ class WebUISectionConfig(PluginConfigBase):
     )
 
 
+class MemorySectionConfig(PluginConfigBase):
+    """记忆系统（LivingMemory 移植）配置。"""
+
+    __ui_label__: ClassVar[str] = "记忆系统"
+    __ui_icon__: ClassVar[str] = "brain"
+    __ui_order__: ClassVar[int] = 6
+
+    enabled: bool = Field(
+        default=True,
+        description="是否启用 MemoryAtom 记忆系统（移植自 LivingMemory）",
+    )
+
+    # 自动注入
+    auto_inject: bool = Field(
+        default=True,
+        description="是否在 LLM 调用前自动检索记忆并注入到 prompt",
+    )
+    injection_mode: str = Field(
+        default="extra_user_content",
+        description="注入方式：extra_user_content / user_message_before / user_message_after",
+    )
+    injection_top_k: int = Field(default=3, description="注入几条记忆")
+    injection_min_score: float = Field(default=0.1, description="注入最低分数")
+    injection_max_chars: int = Field(default=2000, description="注入文本最大字符数")
+
+    # 衰减调度
+    decay_enabled: bool = Field(default=True, description="是否启用每日衰减调度")
+    decay_rate: float = Field(default=0.01, description="每日重要性衰减率")
+    decay_check_hour: int = Field(default=0, description="衰减执行小时（0-23）")
+    decay_check_minute: int = Field(default=5, description="衰减执行分钟（0-59）")
+    cleanup_days_threshold: int = Field(default=30, description="清理超过 N 天的低重要性记忆")
+    cleanup_importance_threshold: float = Field(default=0.3, description="清理重要性低于此值的记忆")
+
+    # 对话总结
+    summary_trigger_rounds: int = Field(
+        default=10,
+        description="每 N 轮对话触发一次总结（生成 atoms）",
+    )
+
+    # LLM Tool
+    enable_memory_search_tool: bool = Field(
+        default=True,
+        description="是否注册 memory_search LLM Tool",
+    )
+    enable_memory_memorize_tool: bool = Field(
+        default=True,
+        description="是否注册 memory_memorize LLM Tool",
+    )
+
+
 class AstrBotDbConfig(PluginConfigBase):
     """AstrBot 数据库移植插件配置。"""
 
@@ -204,13 +262,14 @@ class AstrBotDbConfig(PluginConfigBase):
     interceptor: InterceptorSectionConfig = Field(default_factory=InterceptorSectionConfig)
     injector: InjectorSectionConfig = Field(default_factory=InjectorSectionConfig)
     webui: WebUISectionConfig = Field(default_factory=WebUISectionConfig)
+    memory: MemorySectionConfig = Field(default_factory=MemorySectionConfig)
 
 
 # ----------------------------------------------------------------------
 # 插件主类
 # ----------------------------------------------------------------------
 
-class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin):
+class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin, MemoryApiMixin):
     """AstrBot 数据库移植插件。"""
 
     config_model = AstrBotDbConfig
@@ -219,9 +278,10 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
     _db_path: Path | None = None
     _kb_dir: Path | None = None
     _web_server: WebServer | None = None
+    _mem_decay_scheduler: DecayScheduler | None = None
 
     async def on_load(self) -> None:
-        """插件加载：初始化数据库 + KB + 拦截器 + 注入器 + Web UI。"""
+        """插件加载：初始化数据库 + KB + 拦截器 + 注入器 + Memory + Web UI。"""
 
         cfg = self.config.database
         if not cfg.enabled:
@@ -258,18 +318,98 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
                 f"前缀拦截器已启用: prefixes={interceptor_cfg.prefixes}"
             )
 
-        # 注入器
+        # 注入器（KB 注入）
         injector_cfg = self.config.injector
         if injector_cfg.enabled:
             self.ctx.logger.info(
-                f"自动召回+注入器已启用: top_k={injector_cfg.top_k} "
+                f"KB 自动召回+注入器已启用: top_k={injector_cfg.top_k} "
                 f"min_score={injector_cfg.min_score}"
             )
+
+        # Memory 模块（LivingMemory 移植）
+        mem_cfg = self.config.memory
+        if mem_cfg.enabled:
+            await self._init_memory(mem_cfg)
+        else:
+            self.ctx.logger.info("Memory 模块已禁用（memory.enabled=false）")
 
         # Web UI
         webui_cfg = self.config.webui
         if webui_cfg.enabled:
             await self._start_web_ui(webui_cfg)
+
+    async def _init_memory(self, mem_cfg: MemorySectionConfig) -> None:
+        """初始化 Memory 模块。"""
+
+        # 构造 LLM 调用函数（延迟注入）
+        # MaiBot 模式下通过 ctx.llm.generate 调用
+        llm_fn = None
+        try:
+            llm_fn = self._make_memory_llm_fn()
+        except Exception as exc:
+            self.ctx.logger.warning(
+                f"无法构造 Memory LLM 函数，对话总结功能将不可用: {exc}"
+            )
+
+        init_memory(
+            db=get_db(),
+            llm_generate_fn=llm_fn,
+            injector_enabled=mem_cfg.auto_inject,
+            injector_mode=mem_cfg.injection_mode,
+            injector_top_k=mem_cfg.injection_top_k,
+            injector_min_score=mem_cfg.injection_min_score,
+            injector_max_chars=mem_cfg.injection_max_chars,
+            summary_trigger_rounds=mem_cfg.summary_trigger_rounds,
+        )
+        await init_memory_async(get_db())
+
+        # 注册 Memory Hook（自动注入记忆到 prompt）
+        # 通过 InjectorMixin 的 hook_auto_inject 已注册，这里不再重复
+        # Memory 注入通过单独的 HookHandler 实现（待添加）
+
+        # 启动衰减调度器
+        if mem_cfg.decay_enabled:
+            from astrdb.memory.api import _mem_atom_store, _mem_lifecycle
+            if _mem_atom_store and _mem_lifecycle:
+                self._mem_decay_scheduler = DecayScheduler(
+                    _mem_atom_store,
+                    _mem_lifecycle,
+                    decay_rate=mem_cfg.decay_rate,
+                    check_hour=mem_cfg.decay_check_hour,
+                    check_minute=mem_cfg.decay_check_minute,
+                    cleanup_days_threshold=mem_cfg.cleanup_days_threshold,
+                    cleanup_importance_threshold=mem_cfg.cleanup_importance_threshold,
+                )
+                self._mem_decay_scheduler.start()
+                self.ctx.logger.info(
+                    f"Memory 衰减调度器已启动: 每日 {mem_cfg.decay_check_hour:02d}:"
+                    f"{mem_cfg.decay_check_minute:02d} 执行"
+                )
+
+        self.ctx.logger.info("Memory 模块（LivingMemory 移植）已就绪")
+
+    def _make_memory_llm_fn(self):
+        """构造 MemoryProcessor 用的 LLM 调用函数。
+
+        通过 MaiBot 的 ctx.llm.generate 调用，返回 async (prompt, system_prompt) -> str
+        """
+
+        async def _llm_generate(*, prompt: str, system_prompt: str = "") -> str:
+            try:
+                result = await self.ctx.llm.generate(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                )
+                if isinstance(result, str):
+                    return result
+                if isinstance(result, dict):
+                    return str(result.get("content") or result.get("text") or "")
+                return str(result)
+            except Exception as exc:
+                self.ctx.logger.warning(f"Memory LLM 调用失败: {exc}")
+                return ""
+
+        return _llm_generate
 
     async def _start_web_ui(self, webui_cfg: WebUISectionConfig) -> None:
         """启动 Web 管理 server。"""
@@ -345,14 +485,18 @@ class AstrBotDbPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin)
                         self.ctx.logger.error(f"  导入失败 {fp}: {err}")
 
     async def on_unload(self) -> None:
-        """插件卸载：关闭 Web UI + KB + 数据库。"""
+        """插件卸载：关闭 Web UI + Memory + KB + 数据库。"""
 
+        if self._mem_decay_scheduler is not None:
+            await self._mem_decay_scheduler.stop()
+            self._mem_decay_scheduler = None
+        close_memory()
         if self._web_server is not None:
             await self._web_server.stop()
             self._web_server = None
         close_kb()
         await close_db()
-        self.ctx.logger.info("AstrBot 数据库、KB 与 Web UI 已关闭")
+        self.ctx.logger.info("AstrBot 数据库、KB、Memory 与 Web UI 已关闭")
 
     async def on_config_update(
         self, scope: str, config_data: dict[str, Any], version: str
