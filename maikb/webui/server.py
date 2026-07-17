@@ -647,9 +647,10 @@ tr:hover td { background: var(--surface-2); }
     <div class="panel-title">知识库概览</div>
     <div id="statsContent" class="stats"><div class="loading"><div class="spinner"></div>加载中</div></div>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn" onclick="ingest(false)">增量导入</button>
-      <button class="btn btn-danger" onclick="ingest(true)">强制全量重建</button>
+      <button class="btn" onclick="ingest(false)">扫描目录导入新文件</button>
+      <button class="btn btn-danger" onclick="ingest(true)">全量重建</button>
     </div>
+    <p class="muted" style="margin-top:6px">扫描目录：检查 knowledge_base 文件夹中新增或修改的文件。全量重建：清空所有向量后重新导入（切换 embedding 模型后使用）。</p>
   </div>
 
   <div id="panel-files" class="panel" style="display:none">
@@ -660,8 +661,8 @@ tr:hover td { background: var(--surface-2); }
       <select id="fileCategoryFilter"><option value="">全部分类</option></select>
       <button class="btn btn-sm" onclick="loadFiles()">筛选</button>
       <span style="flex:1"></span>
-      <input type="file" id="uploadInput" accept=".md,.markdown,.txt" onchange="uploadFile(event)" style="display:none">
-      <button class="btn btn-sm" onclick="document.getElementById('uploadInput').click()">上传</button>
+      <input type="file" id="uploadInput" accept=".md,.markdown,.txt" multiple onchange="uploadFiles(event)" style="display:none">
+      <button class="btn btn-sm" onclick="document.getElementById('uploadInput').click()">上传文件</button>
     </div>
     <div style="overflow-x:auto">
       <table><thead><tr><th>文件名</th><th>分类</th><th>状态</th><th>Chunks</th><th>Tokens</th><th>大小</th><th>导入时间</th><th>操作</th></tr></thead>
@@ -849,17 +850,22 @@ async function deleteFile(id, name) {
   try { await api('/api/files/' + id, {method:'DELETE'}); toast('已删除: ' + name, 'success'); loadFiles(); loadStats(); } catch(e) { toast('删除失败: ' + e.message, 'error'); }
 }
 
-async function uploadFile(event) {
-  const input = event.target; if (!input.files.length) return;
-  const file = input.files[0]; const fd = new FormData(); fd.append('file', file);
-  toast('上传中: ' + file.name + '...');
-  try {
-    const resp = await fetch('/api/upload', {method:'POST', headers: token ? {'Authorization':'Bearer '+token} : {}, body: fd});
-    if (!resp.ok) { let m = resp.status; try { m = (await resp.json()).detail || m; } catch(e){} throw new Error(m); }
-    const r = await resp.json();
-    toast('上传成功: ' + r.saved_as, 'success');
-    loadFiles(); loadStats(); loadCategories();
-  } catch(e) { toast('上传失败: ' + e.message, 'error'); }
+async function uploadFiles(event) {
+  const input = event.target;
+  if (!input.files || input.files.length === 0) return;
+  const files = Array.from(input.files);
+  let ok = 0, fail = 0;
+  toast('上传 ' + files.length + ' 个文件中...');
+  for (const file of files) {
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const resp = await fetch('/api/upload', {method:'POST', headers: token ? {'Authorization':'Bearer '+token} : {}, body: fd});
+      if (!resp.ok) { let m = resp.status; try { m = (await resp.json()).detail || m; } catch(e){} throw new Error(m); }
+      ok++;
+    } catch(e) { fail++; toast('失败: ' + file.name + ' - ' + e.message, 'error'); }
+  }
+  if (ok > 0) toast('完成: 成功 ' + ok + (fail > 0 ? ' 失败 ' + fail : ''), 'success');
+  loadFiles(); loadStats(); loadCategories();
   input.value = '';
 }
 
