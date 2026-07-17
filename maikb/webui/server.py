@@ -26,6 +26,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+
+import tomlkit
 from pathlib import Path
 from typing import Any, Optional
 
@@ -463,14 +465,6 @@ class WebServer:
 
     async def _handle_update_config(self, config: dict[str, Any]) -> dict:
         """更新配置：直接写 config.toml，触发 MaiBot 的 FileWatcher 热重载。"""
-
-        try:
-            import tomlkit
-        except ImportError:
-            raise HTTPException(
-                status_code=500,
-                detail="tomlkit not installed, please pip install tomlkit",
-            )
 
         # 配置文件路径：data/plugins/<plugin_id>/config.toml
         config_path = self._plugin.ctx.paths.data_dir / "config.toml"
