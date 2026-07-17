@@ -39,7 +39,7 @@ from .embedder import (
     OpenAICompatibleEmbedder,
 )
 from .importer import IngestResult, KnowledgeBaseImporter, SUPPORTED_EXTENSIONS
-from .search import HybridSearcher, SearchHit, SearchQuery
+from .search import FusionMode, HybridSearcher, SearchHit, SearchQuery
 from .vector_store import VectorIndex
 
 # API mixin 延迟导入，避免循环引用
@@ -66,6 +66,7 @@ __all__ = [
     "SearchHit",
     "SearchQuery",
     "HybridSearcher",
+    "FusionMode",
     # importer
     "KnowledgeBaseImporter",
     "IngestResult",

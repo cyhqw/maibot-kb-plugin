@@ -182,6 +182,15 @@ class InjectorSectionConfig(PluginConfigBase):
         default=True,
         description="LLM 已调过 knowledge_search tool 时跳过自动注入",
     )
+    fusion_mode: str = Field(
+        default="vector_ranked",
+        description=(
+            "融合模式："
+            "'vector_ranked'（默认，BM25 仅召回不参与排序，对中文专有名词最稳）/ "
+            "'hybrid'（标准 RRF，向量与 BM25 都参与排序）/ "
+            "'vector_only'（完全忽略 BM25）"
+        ),
+    )
 
 
 class WebUISectionConfig(PluginConfigBase):
@@ -275,7 +284,8 @@ class MaiKBPlugin(MaiBotPlugin, KbApiMixin, InterceptorMixin, InjectorMixin):
         if injector_cfg.enabled:
             self.ctx.logger.info(
                 f"KB 自动召回+注入器已启用: top_k={injector_cfg.top_k} "
-                f"min_score={injector_cfg.min_score}"
+                f"min_score={injector_cfg.min_score} "
+                f"fusion_mode={injector_cfg.fusion_mode}"
             )
 
         # Web UI

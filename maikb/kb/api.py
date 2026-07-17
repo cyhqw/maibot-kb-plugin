@@ -37,6 +37,7 @@ from maikb.kb import (
     SearchQuery,
     VectorIndex,
 )
+from maikb.kb.search import FusionMode
 
 
 logger = logging.getLogger("maikb.kb.api")
@@ -211,7 +212,7 @@ class KbApiMixin:
     @API(
         "maikb.kb.search",
         description="混合检索知识库（向量 + BM25 + RRF 融合）",
-        version="1",
+        version="2",
         public=True,
     )
     async def api_kb_search(
@@ -222,6 +223,7 @@ class KbApiMixin:
         file_ids: Optional[list[str]] = None,
         use_vector: bool = True,
         use_bm25: bool = True,
+        fusion_mode: str = "vector_ranked",
         **_: Any,
     ) -> dict[str, Any]:
         """混合检索。
@@ -233,10 +235,22 @@ class KbApiMixin:
             file_ids: 限定在某几个文件内检索
             use_vector: 是否走向量
             use_bm25: 是否走 BM25
+            fusion_mode: 融合模式
+                - "hybrid"        : 标准 RRF，向量与 BM25 都参与排序
+                - "vector_ranked" : BM25 仅参与召回不影响排序（默认）
+                - "vector_only"   : 完全忽略 BM25
         """
 
         if _kb_searcher is None:
             return {"success": False, "error": "KB 模块未初始化"}
+
+        # 校验 fusion_mode
+        valid_modes = ("hybrid", "vector_ranked", "vector_only")
+        if fusion_mode not in valid_modes:
+            return {
+                "success": False,
+                "error": f"无效的 fusion_mode: {fusion_mode!r}，可选 {valid_modes}",
+            }
 
         q = SearchQuery(
             query=query,
@@ -245,6 +259,7 @@ class KbApiMixin:
             file_ids=file_ids,
             use_vector=use_vector,
             use_bm25=use_bm25,
+            fusion_mode=fusion_mode,  # type: ignore[arg-type]
         )
         hits = await _kb_searcher.search(q)
         return {
@@ -270,7 +285,8 @@ class KbApiMixin:
             return {"success": False, "error": "KB 模块未初始化"}
 
         q = SearchQuery(
-            query=query, top_k=top_k, use_vector=True, use_bm25=False
+            query=query, top_k=top_k, use_vector=True, use_bm25=False,
+            fusion_mode="vector_only",
         )
         hits = await _kb_searcher.search(q)
         return {
@@ -296,7 +312,9 @@ class KbApiMixin:
             return {"success": False, "error": "KB 模块未初始化"}
 
         q = SearchQuery(
-            query=query, top_k=top_k, use_vector=False, use_bm25=True
+            query=query, top_k=top_k, use_vector=False, use_bm25=True,
+            # 仅 BM25 时 fusion_mode 不影响结果（向量路空），保留 hybrid 语义
+            fusion_mode="hybrid",
         )
         hits = await _kb_searcher.search(q)
         return {
@@ -429,12 +447,23 @@ class KbApiMixin:
                 description="返回结果数量，默认 5",
                 required=False,
             ),
+            ToolParameterInfo(
+                name="fusion_mode",
+                param_type=ToolParamType.STRING,
+                description=(
+                    "融合模式：'vector_ranked'（默认，BM25 仅召回不影响排序）/ "
+                    "'hybrid'（标准 RRF，向量与 BM25 都参与排序）/ "
+                    "'vector_only'（完全忽略 BM25）"
+                ),
+                required=False,
+            ),
         ],
     )
     async def tool_knowledge_search(
         self,
         query: str,
         top_k: int = 5,
+        fusion_mode: str = "vector_ranked",
         **_: Any,
     ) -> dict[str, Any]:
         """LLM 工具：检索知识库，返回格式化文本供 LLM 引用。
@@ -448,7 +477,12 @@ class KbApiMixin:
                 "found": False,
             }
 
-        q = SearchQuery(query=query, top_k=top_k)
+        # 校验 fusion_mode
+        valid_modes = ("hybrid", "vector_ranked", "vector_only")
+        if fusion_mode not in valid_modes:
+            fusion_mode = "vector_ranked"  # 静默回退到默认
+
+        q = SearchQuery(query=query, top_k=top_k, fusion_mode=fusion_mode)  # type: ignore[arg-type]
         hits = await _kb_searcher.search(q)
 
         if not hits:

@@ -48,6 +48,7 @@ class SearchRequest(BaseModel):
     top_k: int = 5
     use_vector: bool = True
     use_bm25: bool = True
+    fusion_mode: str = "vector_ranked"  # hybrid / vector_ranked / vector_only
     category: Optional[str] = None
 
 
@@ -413,6 +414,7 @@ class WebServer:
             top_k=req.top_k,
             use_vector=req.use_vector,
             use_bm25=req.use_bm25,
+            fusion_mode=req.fusion_mode,  # type: ignore[arg-type]
             category=req.category,
         )
         hits = await _kb_searcher.search(q)
@@ -941,7 +943,7 @@ td .muted { margin-top: 2px; }
     <div class="panel-title">检索测试</div>
     <div class="toolbar">
       <input type="text" id="searchQuery" placeholder="输入查询内容" onkeydown="if(event.key==='Enter')doSearch()" style="flex:1;min-width:180px">
-      <select id="searchMode"><option value="hybrid">混合</option><option value="vector">仅向量</option><option value="bm25">仅 BM25</option></select>
+      <select id="searchMode"><option value="hybrid">混合（向量+BM25 排序）</option><option value="vector_ranked" selected>向量主导（BM25 仅召回）</option><option value="vector">仅向量</option><option value="bm25">仅 BM25</option></select>
       <select id="searchTopK"><option value="3">Top 3</option><option value="5" selected>Top 5</option><option value="10">Top 10</option></select>
       <button class="btn" onclick="doSearch()">检索</button>
     </div>
@@ -1167,8 +1169,24 @@ async function doSearch() {
   const mode = document.getElementById('searchMode').value;
   const topK = parseInt(document.getElementById('searchTopK').value);
   document.getElementById('searchResults').innerHTML = '<div class="loading"><div class="spinner"></div>检索中</div>';
+  // mode 映射：hybrid/vector_ranked/vector 都走向量+BM25，区别在 fusion_mode；bm25 走纯 BM25
+  const payload = {query:q, top_k:topK};
+  if (mode === 'bm25') {
+    payload.use_vector = false;
+    payload.use_bm25 = true;
+    payload.fusion_mode = 'hybrid';
+  } else if (mode === 'vector') {
+    payload.use_vector = true;
+    payload.use_bm25 = false;
+    payload.fusion_mode = 'vector_only';
+  } else {
+    // hybrid 或 vector_ranked：向量+BM25 都开，按 fusion_mode 决定排序策略
+    payload.use_vector = true;
+    payload.use_bm25 = true;
+    payload.fusion_mode = mode;  // 'hybrid' 或 'vector_ranked'
+  }
   try {
-    const r = await api('/api/search', {method:'POST', body:JSON.stringify({query:q, top_k:topK, use_vector:mode!=='bm25', use_bm25:mode!=='vector'})});
+    const r = await api('/api/search', {method:'POST', body:JSON.stringify(payload)});
     if (!r.count) { document.getElementById('searchResults').innerHTML = '<p style="text-align:center;padding:16px;color:var(--text-3)">未找到相关结果</p>'; return; }
     document.getElementById('searchResults').innerHTML = r.items.map(h => `<div class="result">
       <div class="r-head"><span class="r-title">${esc(h.heading||(h.title_path||[]).join(' > ')||'-')}</span><span class="r-scores">score=${h.score.toFixed(4)} vec=${h.vector_score.toFixed(3)} bm25=${h.bm25_score.toFixed(3)}</span></div>

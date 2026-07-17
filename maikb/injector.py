@@ -205,11 +205,17 @@ class InjectorMixin:
         # 检索
         try:
             from .kb import SearchQuery
+            # 从配置读取融合模式，默认 vector_ranked（BM25 仅召回不排序）
+            fusion_mode = getattr(cfg, "fusion_mode", "vector_ranked")
+            valid_modes = ("hybrid", "vector_ranked", "vector_only")
+            if fusion_mode not in valid_modes:
+                fusion_mode = "vector_ranked"
             q = SearchQuery(
                 query=query,
                 top_k=cfg.top_k,
                 use_vector=True,
                 use_bm25=True,
+                fusion_mode=fusion_mode,  # type: ignore[arg-type]
             )
             hits = await _kb_searcher.search(q)
         except Exception as exc:
