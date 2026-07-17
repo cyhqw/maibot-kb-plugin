@@ -445,13 +445,19 @@ class WebServer:
         return {"success": True, **result.to_dict()}
 
     async def _handle_get_config(self) -> dict:
-        """读取插件当前配置（序列化 config_model）。
+        """读取插件配置。
 
-        优先用 config_model.model_dump()；若 plugin 对象只暴露旧式
-        get_plugin_config_data()（例如测试桩），则回退到它。
+        优先从 config.toml 文件读（保存后立即生效）；
+        若文件不存在则回退到内存 config_model / get_plugin_config_data。
         """
 
         try:
+            config_path = self._plugin.ctx.paths.data_dir / "config.toml"
+            if config_path.exists():
+                import tomllib
+                with open(config_path, "rb") as f:
+                    return tomllib.load(f)
+            # 回退到内存
             cfg = getattr(self._plugin, "config", None)
             if cfg is not None and hasattr(cfg, "model_dump"):
                 return cfg.model_dump(mode="json")
