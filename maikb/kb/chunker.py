@@ -141,6 +141,30 @@ def _split_markdown_into_sections(text: str) -> list[_Section]:
     return sections
 
 
+def _merge_short_sections(sections: list[_Section], min_chars: int) -> list[_Section]:
+    """把内容过短的 section 合并到前一个 section。
+
+    避免标题密集的文档（每个小标题下只有几行）产生大量碎片 chunk。
+    合并后 section 的 heading 用前一个 section 的，title_path 也用前一个的，
+    但被合并 section 的 heading 作为内容前缀保留。
+    """
+
+    if not sections:
+        return []
+
+    merged: list[_Section] = []
+    for sec in sections:
+        if merged and len(sec.content) < min_chars:
+            # 短 section：把它的 heading 作为小标题拼到前一个 section 内容里
+            prev = merged[-1]
+            prefix = f"### {sec.heading}\n\n" if sec.heading else ""
+            prev.content = prev.content + "\n\n" + prefix + sec.content
+        else:
+            merged.append(sec)
+
+    return merged
+
+
 def _chunk_section_by_paragraphs(
     section: _Section,
     target_chars: int,
@@ -286,6 +310,8 @@ def chunk_markdown(
     """
 
     sections = _split_markdown_into_sections(text)
+    # 合并过短的 section 到前一个 section，避免碎片 chunk
+    sections = _merge_short_sections(sections, min_chars)
     chunks: list[Chunk] = []
     for section in sections:
         chunks.extend(

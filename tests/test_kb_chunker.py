@@ -12,13 +12,13 @@ def test_basic_markdown_chunking():
 
 ## 第二幕 月宫与葬火
 
-法涅斯是原初之人。
+法涅斯是原初之人，从蛋中诞生后创造了提瓦特世界的秩序与法则。
 
 ## 第三幕 高塔孤王
 
-温迪推翻了高塔孤王。
+温迪推翻了高塔孤王迭卡拉庇安，解放了蒙德城的人民。
 """
-    chunks = chunk_markdown(md)
+    chunks = chunk_markdown(md, min_chars=0)
     assert len(chunks) == 2
 
     assert chunks[0].heading == "第二幕 月宫与葬火"
@@ -39,13 +39,13 @@ def test_three_level_headings():
 
 ### 法涅斯的诞生
 
-法涅斯从蛋中诞生。
+法涅斯从蛋中诞生，这是原初之人降临提瓦特的故事，他创造了世界的秩序与光暗法则。
 
 ### 法涅斯与龙族
 
-法涅斯击败了七位龙王。
+法涅斯击败了七位龙王，统一了提瓦特大陆，这是创世之战的壮丽史诗。
 """
-    chunks = chunk_markdown(md)
+    chunks = chunk_markdown(md, min_chars=0)
     assert len(chunks) == 2
 
     assert chunks[0].heading == "法涅斯的诞生"
@@ -58,13 +58,13 @@ def test_three_level_headings():
 def test_pre_heading_content():
     """标题前的内容归入空 title_path section。"""
 
-    md = """这是开头的引言。
+    md = """这是开头的引言，描述了提瓦特大陆的基本背景和世界观设定。
 
 # 第一章
 
-第一章内容。
+第一章内容，讲述了旅行者初次来到蒙德城时遇到的种种事件。
 """
-    chunks = chunk_markdown(md)
+    chunks = chunk_markdown(md, min_chars=0)
     assert len(chunks) == 2
     assert chunks[0].title_path == []
     assert "引言" in chunks[0].content
